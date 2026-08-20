@@ -6,32 +6,23 @@
 
   vars:
     node_name: "{{ target_node_name }}"
-    #node_ip: "{{ target_node_ip }}"
 
   tasks:
-    #- name: 1. Configure External Firewall Rule
-    #  ansible.builtin.uri:
-    #    url: "https://firewall.example.com/api/v1/objects/addresses"
-    #    method: POST
-    #    headers:
-    #      Authorization: "Bearer {{ firewall_api_token }}"
-    #      Content-Type: "application/json"
-    #    body_format: json
-    #    body:
-    #      address: "{{ node_ip }}"
-    #      name: "{{ node_name }}"
-    #      group: "openshift-ingress-workers"
-    #    status_code: [200, 201]
+    - name: Remove Taint and Label from OpenShift Machine
+      kubernetes.core.k8s:
+        # Uses the OpenShift ServiceAccount Credential configured in AAP Step 2
+        definition:
+          apiVersion: v1
+          kind: Machine
+          metadata:
+            name: "{{ node_name }}"
+            labels:
+              trigger-aap-onboarding: null # Setting null removes the label
+          spec:
+            taints: [] # Strips all onboarding taints from the Node
+        validate_certs: false
 
-    #- name: 2. Validate Inbound 80/443 Traffic from Outside Perimeter
-    #  ansible.builtin.wait_for:
-    #    host: "{{ node_ip }}"
-    #    port: 443
-    #    state: started
-    #    timeout: 120
-    #    delay: 5
-
-    - name: 3. Remove Taint and Label from OpenShift Node
+    - name: Remove Taint and Label from OpenShift Node
       kubernetes.core.k8s:
         # Uses the OpenShift ServiceAccount Credential configured in AAP Step 2
         definition:
