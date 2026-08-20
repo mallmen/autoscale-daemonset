@@ -5,36 +5,93 @@
   gather_facts: false
 
   vars:
-    node_name: "{{ target_node_name }}"
     validate_certs: false
 
   tasks:
-    - name: Remove taint from Machine resource
-      kubernetes.core.k8s:
+    ---
+- name: OpenShift Node Firewall Onboarding Workflow
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    validate_certs: false
+
+  tasks:
+    # ==========================================
+    # 1. MACHINE RESOURCE
+    # ==========================================
+    - name: Fetch Machine details
+      kubernetes.core.k8s_info:
         validate_certs: "{{ validate_certs }}"
-        definition:
-          apiVersion: machine.openshift.io/v1beta1
-          kind: Machine
-          metadata:
-            name: "{{ target_node_name }}"
-            namespace: openshift-machine-api
-            labels:
-              trigger-app-onboarding: null
-          spec:
-            taints: []
+        api_version: machine.openshift.io/v1beta1
+        kind: Machine
+        namespace: openshift-machine-api
+        name: "{{ target_node_name }}"
+      register: machine_info
 
-    - name: Remove Taint and Label from OpenShift Node
-      kubernetes.core.k8s:
+    - name: Initialize Machine patch list
+      ansible.builtin.set_fact:
+        machine_patch: []
+
+    - name: Add label removal to Machine patch
+      ansible.builtin.set_fact:
+        machine_patch: "{{ machine_patch + [{'op': 'remove', 'path': '/metadata/labels/trigger-aap-onboarding'}] }}"
+      when:
+        - machine_info.resources | length > 0
+        - "'trigger-aap-onboarding' in (machine_info.resources[0].metadata.labels | default({}))"
+
+    - name: Add taint clearing to Machine patch
+      ansible.builtin.set_fact:
+        machine_patch: "{{ machine_patch + [{'op': 'add', 'path': '/spec/taints', 'value': []}] }}"
+      when:
+        - machine_info.resources | length > 0
+        - "(machine_info.resources[0].spec.taints | default([])) | length > 0"
+
+    - name: Apply patch to Machine resource
+      kubernetes.core.k8s_json_patch:
         validate_certs: "{{ validate_certs }}"
-        definition:
-          apiVersion: v1
-          kind: Node
-          metadata:
-            name: "{{ node_name }}"
-            labels:
-              trigger-aap-onboarding: null # Setting null removes the label
-          spec:
-            taints: [] # Strips all onboarding taints from the Node
+        api_version: machine.openshift.io/v1beta1
+        kind: Machine
+        namespace: openshift-machine-api
+        name: "{{ target_node_name }}"
+        patch: "{{ machine_patch }}"
+      when: machine_patch | length > 0
 
+    # ==========================================
+    # 2. NODE RESOURCE
+    # ==========================================
+    - name: Fetch Node details
+      kubernetes.core.k8s_info:
+        validate_certs: "{{ validate_certs }}"
+        api_version: v1
+        kind: Node
+        name: "{{ target_node_name }}"
+      register: node_info
 
+    - name: Initialize Node patch list
+      ansible.builtin.set_fact:
+        node_patch: []
 
+    - name: Add label removal to Node patch
+      ansible.builtin.set_fact:
+        node_patch: "{{ node_patch + [{'op': 'remove', 'path': '/metadata/labels/trigger-aap-onboarding'}] }}"
+      when:
+        - node_info.resources | length > 0
+        - "'trigger-aap-onboarding' in (node_info.resources[0].metadata.labels | default({}))"
+
+    - name: Add taint clearing to Node patch
+      ansible.builtin.set_fact:
+        node_patch: "{{ node_patch + [{'op': 'add', 'path': '/spec/taints', 'value': []}] }}"
+      when:
+        - node_info.resources | length > 0
+        - "(node_info.resources[0].spec.taints | default([])) | length > 0"
+
+    - name: Apply patch to Node resource
+      kubernetes.core.k8s_json_patch:
+        validate_certs: "{{ validate_certs }}"
+        api_version: v1
+        kind: Node
+        name: "{{ target_node_name }}"
+        patch: "{{ node_patch }}"
+      when: node_patch | length > 0
