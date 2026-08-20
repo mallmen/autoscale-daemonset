@@ -6,6 +6,7 @@
 
   vars:
     node_name: "{{ target_node_name }}"
+    validate_certs: false
 
   tasks:
     - name: Remove taint from Machine resource
@@ -24,7 +25,7 @@
 
     - name: Remove Taint and Label from OpenShift Node
       kubernetes.core.k8s:
-        validate_certs: false
+        validate_certs: "{{ validate_certs }}"
         definition:
           apiVersion: v1
           kind: Node
