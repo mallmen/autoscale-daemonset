@@ -8,23 +8,23 @@
     node_name: "{{ target_node_name }}"
 
   tasks:
-    - name: Remove Taint and Label from OpenShift Machine
+    - name: Remove taint from Machine resource
       kubernetes.core.k8s:
-        # Uses the OpenShift ServiceAccount Credential configured in AAP Step 2
+        validate_certs: "{{ validate_certs }}"
         definition:
-          apiVersion: v1
+          apiVersion: machine.openshift.io/v1beta1
           kind: Machine
           metadata:
-            name: "{{ node_name }}"
+            name: "{{ target_node_name }}"
+            namespace: openshift-machine-api
             labels:
-              trigger-aap-onboarding: null # Setting null removes the label
+              trigger-app-onboarding: null
           spec:
-            taints: [] # Strips all onboarding taints from the Node
-        validate_certs: false
+            taints: []
 
     - name: Remove Taint and Label from OpenShift Node
       kubernetes.core.k8s:
-        # Uses the OpenShift ServiceAccount Credential configured in AAP Step 2
+        validate_certs: false
         definition:
           apiVersion: v1
           kind: Node
@@ -34,4 +34,6 @@
               trigger-aap-onboarding: null # Setting null removes the label
           spec:
             taints: [] # Strips all onboarding taints from the Node
-        validate_certs: false
+
+
+
