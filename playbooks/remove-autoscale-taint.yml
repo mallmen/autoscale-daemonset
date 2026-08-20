@@ -43,4 +43,4 @@
               trigger-aap-onboarding: null # Setting null removes the label
           spec:
             taints: [] # Strips all onboarding taints from the Node
-
+        validate_certs: false
